@@ -135,7 +135,7 @@ class ForceSolver:
         return np.linalg.lstsq(np.eye(3), -np.array(F), rcond=None)[0]
 
 
-# ================= ✅ VISUALIZATION (CRITICAL FIX) =================
+# ================= FULL VISUALIZATION =================
 
 def mirror_data(res):
     new = {}
@@ -145,6 +145,54 @@ def mirror_data(res):
         else:
             new[k] = v
     return new
+
+
+def plot_wheel(ax, center, radius, width, camber=0, toe=0, color='k'):
+    theta = np.linspace(0, 2*np.pi, 30)
+
+    # wheel circle (local)
+    x = radius * np.cos(theta)
+    z = radius * np.sin(theta)
+    y = np.zeros_like(x)
+
+    # rotations
+    cam = np.radians(camber)
+    toe = np.radians(toe)
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(cam), -np.sin(cam)],
+        [0, np.sin(cam), np.cos(cam)]
+    ])
+
+    Rz = np.array([
+        [np.cos(toe), -np.sin(toe), 0],
+        [np.sin(toe),  np.cos(toe), 0],
+        [0, 0, 1]
+    ])
+
+    def transform(y_offset):
+        pts = []
+        for i in range(len(x)):
+            p = np.array([x[i], y[i] + y_offset, z[i]])
+            p = Rz @ (Rx @ p)
+            pts.append(p + center)
+        return np.array(pts)
+
+    outer = transform(width/2)
+    inner = transform(-width/2)
+
+    ax.plot(outer[:,0], outer[:,1], outer[:,2], color=color, linewidth=2)
+    ax.plot(inner[:,0], inner[:,1], inner[:,2], color=color, linewidth=2)
+
+    # spokes
+    for i in range(len(theta)):
+        ax.plot(
+            [inner[i,0], outer[i,0]],
+            [inner[i,1], outer[i,1]],
+            [inner[i,2], outer[i,2]],
+            color=color, alpha=0.3
+        )
 
 
 def plot_corner(ax, res, c, params=None):
@@ -157,39 +205,87 @@ def plot_corner(ax, res, c, params=None):
             **kwargs
         )
 
-    # Wishbones
+    # ---------------- WISHBONES ----------------
+    line(res['upper_wishbone_front'], res['upper_wishbone_rear'], 
+         color='grey', linestyle='--', alpha=0.5)
+
+    line(res['lower_wishbone_front'], res['lower_wishbone_rear'], 
+         color='grey', linestyle='--', alpha=0.5)
+
     line(res['upper_wishbone_front'], res['upper_ball_joint'], color=c, linewidth=2)
-    line(res['upper_wishbone_rear'], res['upper_ball_joint'], color=c, linewidth=2)
+    line(res['upper_wishbone_rear'],  res['upper_ball_joint'], color=c, linewidth=2)
 
     line(res['lower_wishbone_front'], res['lower_ball_joint'], color=c, linewidth=2)
-    line(res['lower_wishbone_rear'], res['lower_ball_joint'], color=c, linewidth=2)
+    line(res['lower_wishbone_rear'],  res['lower_ball_joint'], color=c, linewidth=2)
 
-    # Upright
+    # ---------------- UPRIGHT ----------------
     line(res['upper_ball_joint'], res['lower_ball_joint'], color='k', linewidth=2)
 
-    # Tie rod
-    if 'tie_rod_chassis' in res:
-        line(res['tie_rod_chassis'], res['tie_rod_upright'], color='c', linewidth=2)
+    line(res['upper_ball_joint'], res['tie_rod_upright'], color='k', linewidth=1)
+    line(res['lower_ball_joint'], res['tie_rod_upright'], color='k', linewidth=1)
 
-    # Wheel link
-    if 'wheel_center' in res:
-        line(res['lower_ball_joint'], res['wheel_center'], color='k', linewidth=3)
+    # ---------------- TIE ROD ----------------
+    line(res['tie_rod_chassis'], res['tie_rod_upright'], color='c', linewidth=2)
 
-    # Pushrod
-    if 'pushrod_upright_mount' in res and 'rocker_pivot_point' in res:
-        line(res['pushrod_upright_mount'], res['rocker_pivot_point'], color='m', linewidth=2)
+    # ---------------- WHEEL LINK ----------------
+    line(res['lower_ball_joint'], res['wheel_center'], color='k', linewidth=3)
+
+    # ---------------- PUSHROD ----------------
+    if 'pushrod_upright_mount' in res:
+        line(res['pushrod_upright_mount'],
+             res['rocker_pivot_point'],
+             color='m', linewidth=2)
+
+    # ---------------- ROCKER + SHOCK ----------------
+    if 'rocker_pivot_point' in res:
+        line(res['rocker_pivot_point'],
+             res['pushrod_rocker_mount'],
+             color='g')
+
+        line(res['rocker_pivot_point'],
+             res['shock_rocker_mount'],
+             color='g')
+
+        line(res['shock_rocker_mount'],
+             res['shock_chassis_mount'],
+             color='orange', linewidth=3)
+
+        # rocker axis
+        p1 = res['rocker_pivot_point']
+        p2 = res['rocker_axis_definition']
+        vec = p2 - p1
+        start = p1 - vec * 0.5
+        end = p1 + vec * 1.5
+
+        line(start, end, color='y', linestyle=':', linewidth=2)
+
+    # ---------------- WHEEL ----------------
+    if params:
+        kp = res['upper_ball_joint'] - res['lower_ball_joint']
+        camber = np.degrees(np.arctan2(kp[1], kp[2]))
+
+        vec = res['tie_rod_upright'] - res['wheel_center']
+        toe = np.degrees(np.arctan2(vec[0], vec[1]))
+
+        plot_wheel(
+            ax,
+            res['wheel_center'],
+            params['tire_radius'],
+            params['tire_width'],
+            camber,
+            toe,
+            color=c
+        )
 
 
 def set_axes_proportional(ax):
-    x = ax.get_xlim3d()
-    y = ax.get_ylim3d()
-    z = ax.get_zlim3d()
-
-    ranges = [abs(x[1]-x[0]), abs(y[1]-y[0]), abs(z[1]-z[0])]
-    centers = [np.mean(x), np.mean(y), np.mean(z)]
+    lims = [ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()]
+    ranges = [abs(l[1] - l[0]) for l in lims]
+    mids = [np.mean(l) for l in lims]
 
     r = 0.5 * max(ranges)
 
-    ax.set_xlim3d([centers[0]-r, centers[0]+r])
-    ax.set_ylim3d([centers[1]-r, centers[1]+r])
-    ax.set_zlim3d([centers[2]-r, centers[2]+r])
+    ax.set_xlim3d([mids[0] - r, mids[0] + r])
+    ax.set_ylim3d([mids[1] - r, mids[1] + r])
+    ax.set_zlim3d([mids[2] - r, mids[2] + r])
+    ax.set_box_aspect((1, 1, 1))
