@@ -17,8 +17,41 @@ VEHICLE_PARAMS = {
 }
 
 # ================= HARDPOINTS =================
-# (UNCHANGED — your originals)
-# keep your existing front_hp and rear_hp exactly here
+front_hp = {
+    'upper_wishbone_front': np.array([384.746, 265.190, 221.546]),
+    'upper_wishbone_rear':  np.array([202.091, 275.030, 222.985]),
+    'lower_wishbone_front': np.array([386.760, 193.690, 93.533]),
+    'lower_wishbone_rear':  np.array([203.162, 218.530, 87.556]),
+    'tie_rod_chassis':      np.array([241.296, 217.871, 121.199]),
+    'upper_ball_joint':     np.array([296.013, 594.999, 297.614]),
+    'lower_ball_joint':     np.array([306.743, 600.332, 144.281]),
+    'tie_rod_upright':      np.array([223.932, 584.216, 180.706]),
+    'wheel_center':         np.array([300.983, 627.022, 228.461]),
+    'pushrod_upright_mount':  np.array([302.292, 562.587, 164.418]), 
+    'rocker_pivot_point':     np.array([310.914, 245.000, 580.859]), 
+    'rocker_axis_definition': np.array([410.892, 245.000, 578.789]), 
+    'pushrod_rocker_mount':   np.array([311.505, 291.997, 609.424]),    
+    'shock_rocker_mount':     np.array([311.999, 228.425, 633.291]), 
+    'shock_chassis_mount':    np.array([310.914, 62.500, 625.000]), 
+}
+
+rear_hp = {
+    'upper_wishbone_front': np.array([-1216.930, 300.000, 280.470]),
+    'upper_wishbone_rear':  np.array([-1466.820, 300.000, 287.670]),
+    'lower_wishbone_front': np.array([-1224.490, 280.000, 121.770]),
+    'lower_wishbone_rear':  np.array([-1474.390, 280.000, 128.970]),
+    'tie_rod_chassis':      np.array([-1220.710, 295.430, 238.850]),
+    'upper_ball_joint':     np.array([-1352.771, 598.432, 346.443]),
+    'lower_ball_joint':     np.array([-1351.393, 602.249, 171.490]),
+    'tie_rod_upright':      np.array([-1263.639, 599.509, 297.755]),
+    'wheel_center':         np.array([-1350.000, 630.013, 228.546]),
+    'pushrod_upright_mount':  np.array([-1348.963, 552.751, 168.683]), 
+    'rocker_pivot_point':     np.array([-1426.258, 260.411, 336.729]), 
+    'rocker_axis_definition': np.array([-1522.266, 270.886, 310.792]), 
+    'pushrod_rocker_mount':   np.array([-1428.888, 288.292, 357.722]),    
+    'shock_rocker_mount':     np.array([-1445.120, 218.736, 389.714]), 
+    'shock_chassis_mount':    np.array([-1451.099, 50.000, 343.698]), 
+}
 
 # ================= HELPERS =================
 def dict_to_df(hp):
