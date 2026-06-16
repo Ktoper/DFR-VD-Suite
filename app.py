@@ -15,7 +15,7 @@ from fsae_core import (
     rear_hp,
     plot_corner,
     mirror_data,
-    set_axes_proportional
+    #set_axes_proportional
 )
 
 st.set_page_config(layout="wide", page_title="FSAE VD Suite")
