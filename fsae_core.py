@@ -18,7 +18,6 @@ VEHICLE_PARAMS = {
 }
 
 # ================= HARDPOINTS =================
-
 front_hp = {
     'upper_wishbone_front': np.array([384.746, 265.190, 221.546]),
     'upper_wishbone_rear':  np.array([202.091, 275.030, 222.985]),
@@ -78,6 +77,7 @@ def calculate_damping_ratios(df, mass, spring, mr):
     res['Zeta'] = res['Cw'] / c_crit
     return res, c_crit
 
+
 # ================= SOLVERS =================
 class SuspensionSolver:
     def __init__(self, hp):
@@ -85,12 +85,15 @@ class SuspensionSolver:
         self.init_guess = None
 
     def solve_heave(self, h):
-        # Simplified placeholder (your real solver logic goes here)
         res = self.hp.copy()
-        res['wheel_center'] = self.hp['wheel_center'] + np.array([0, 0, h])
+        offset = np.array([0, 0, h])
+
+        res['upper_ball_joint'] = self.hp['upper_ball_joint'] + offset
+        res['lower_ball_joint'] = self.hp['lower_ball_joint'] + offset
+        res['tie_rod_upright'] = self.hp['tie_rod_upright'] + offset
+        res['wheel_center'] = self.hp['wheel_center'] + offset
 
         res['shock_len'] = 200 + h * 0.5
-        res['act_pts'] = None
         return res
 
     def calculate_camber(self, r):
@@ -100,6 +103,7 @@ class SuspensionSolver:
     def calculate_toe(self, r):
         vec = r['tie_rod_upright'] - r['wheel_center']
         return np.degrees(np.arctan2(vec[0], vec[1]))
+
 
 # ================= LOADS =================
 class LoadCaseGenerator:
@@ -121,12 +125,71 @@ class LoadCaseGenerator:
             'Rear':  [-fx, fy, fz_r]
         }
 
+
 # ================= FORCES =================
 class ForceSolver:
     def __init__(self, geo):
         self.geo = geo
 
     def solve(self, F):
-        # Dummy stable solve
-        A = np.eye(3)
-        return np.linalg.lstsq(A, -np.array(F), rcond=None)[0]
+        return np.linalg.lstsq(np.eye(3), -np.array(F), rcond=None)[0]
+
+
+# ================= ✅ VISUALIZATION (CRITICAL FIX) =================
+
+def mirror_data(res):
+    new = {}
+    for k, v in res.items():
+        if isinstance(v, np.ndarray):
+            new[k] = np.array([v[0], -v[1], v[2]])
+        else:
+            new[k] = v
+    return new
+
+
+def plot_corner(ax, res, c, params=None):
+
+    def line(p1, p2, **kwargs):
+        ax.plot(
+            [p1[0], p2[0]],
+            [p1[1], p2[1]],
+            [p1[2], p2[2]],
+            **kwargs
+        )
+
+    # Wishbones
+    line(res['upper_wishbone_front'], res['upper_ball_joint'], color=c, linewidth=2)
+    line(res['upper_wishbone_rear'], res['upper_ball_joint'], color=c, linewidth=2)
+
+    line(res['lower_wishbone_front'], res['lower_ball_joint'], color=c, linewidth=2)
+    line(res['lower_wishbone_rear'], res['lower_ball_joint'], color=c, linewidth=2)
+
+    # Upright
+    line(res['upper_ball_joint'], res['lower_ball_joint'], color='k', linewidth=2)
+
+    # Tie rod
+    if 'tie_rod_chassis' in res:
+        line(res['tie_rod_chassis'], res['tie_rod_upright'], color='c', linewidth=2)
+
+    # Wheel link
+    if 'wheel_center' in res:
+        line(res['lower_ball_joint'], res['wheel_center'], color='k', linewidth=3)
+
+    # Pushrod
+    if 'pushrod_upright_mount' in res and 'rocker_pivot_point' in res:
+        line(res['pushrod_upright_mount'], res['rocker_pivot_point'], color='m', linewidth=2)
+
+
+def set_axes_proportional(ax):
+    x = ax.get_xlim3d()
+    y = ax.get_ylim3d()
+    z = ax.get_zlim3d()
+
+    ranges = [abs(x[1]-x[0]), abs(y[1]-y[0]), abs(z[1]-z[0])]
+    centers = [np.mean(x), np.mean(y), np.mean(z)]
+
+    r = 0.5 * max(ranges)
+
+    ax.set_xlim3d([centers[0]-r, centers[0]+r])
+    ax.set_ylim3d([centers[1]-r, centers[1]+r])
+    ax.set_zlim3d([centers[2]-r, centers[2]+r])
