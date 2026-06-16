@@ -204,4 +204,3 @@ with tab_loads:
 
     st.subheader("Rear")
     st.write(ForceSolver(viz_data['Rear']).solve(loads['Rear']))
-``
