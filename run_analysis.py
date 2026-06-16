@@ -35,7 +35,11 @@ def run():
         bc = solver.calculate_camber(static); bt = solver.calculate_toe(static)
         
         def run_sweep(vals):
-            solver.init_guess = np.concatenate([solver.hp['ubj'], solver.hp['lbj'], solver.hp['tie_rod_outer']])
+            solver.init_guess = np.concatenate([
+                solver.hp['upper_ball_joint'], 
+                solver.hp['lower_ball_joint'], 
+                solver.hp['tie_rod_upright']
+            ])
             for h in vals:
                 r = solver.solve_heave(h)
                 if r:
@@ -43,9 +47,14 @@ def run():
                     res_store[end]['camber'].append(solver.calculate_camber(r)-bc)
                     res_store[end]['toe'].append(solver.calculate_toe(r)-bt)
                     res_store[end]['shock'].append(r['shock_len'])
-                    solver.init_guess = np.concatenate([r['ubj'], r['lbj'], r['tro']])
+                    solver.init_guess = np.concatenate([
+                        r['upper_ball_joint'], 
+                        r['lower_ball_joint'], 
+                        r['tie_rod_upright']
+                    ])
                 else:
                     res_store[end]['heave'].append(h); res_store[end]['camber'].append(np.nan)
+        
         run_sweep(heave_up); run_sweep(heave_down)
         
         if res_store[end]['heave']:
