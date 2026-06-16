@@ -86,14 +86,30 @@ class SuspensionSolver:
 
     def solve_heave(self, h):
         res = self.hp.copy()
+
         offset = np.array([0, 0, h])
 
+        # Move upright-related points
         res['upper_ball_joint'] = self.hp['upper_ball_joint'] + offset
         res['lower_ball_joint'] = self.hp['lower_ball_joint'] + offset
         res['tie_rod_upright'] = self.hp['tie_rod_upright'] + offset
         res['wheel_center'] = self.hp['wheel_center'] + offset
+        res['pushrod_upright_mount'] = self.hp['pushrod_upright_mount'] + offset
 
-        res['shock_len'] = 200 + h * 0.5
+        # ✅ CRITICAL: fake spindle end (needed for toe calc in plot)
+        res['spindle_end'] = res['wheel_center'] + np.array([50, 0, 0])
+
+        # ✅ CRITICAL: actuation points (THIS is why shocks disappeared)
+        res['act_pts'] = {
+            'pushrod_rocker_mount': self.hp['pushrod_rocker_mount'],
+            'shock_rocker_mount': self.hp['shock_rocker_mount']
+        }
+
+        # Shock length (placeholder but needed)
+        res['shock_len'] = np.linalg.norm(
+            self.hp['shock_rocker_mount'] - self.hp['shock_chassis_mount']
+        )
+
         return res
 
     def calculate_camber(self, r):
@@ -101,7 +117,7 @@ class SuspensionSolver:
         return np.degrees(np.arctan2(vec[1], vec[2]))
 
     def calculate_toe(self, r):
-        vec = r['tie_rod_upright'] - r['wheel_center']
+        vec = r['spindle_end'] - r['wheel_center']
         return np.degrees(np.arctan2(vec[0], vec[1]))
 
 
