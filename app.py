@@ -12,7 +12,10 @@ from fsae_core import (
     calculate_damping_ratios,
     VEHICLE_PARAMS,
     front_hp,
-    rear_hp
+    rear_hp,
+    plot_corner,
+    mirror_data,
+    set_axes_proportional
 )
 
 st.set_page_config(layout="wide", page_title="FSAE VD Suite")
@@ -50,23 +53,22 @@ tab_config, tab_geo, tab_kin, tab_steer, tab_anti, tab_damp, tab_loads = st.tabs
 ])
 
 # ====================================================
-# TAB 1: VEHICLE CONFIG (MOVED HERE ✅)
+# TAB 1: VEHICLE CONFIG
 # ====================================================
 with tab_config:
     st.header("Vehicle Setup")
 
     VEHICLE_PARAMS['mass_kg'] = st.number_input("Mass (kg)", 150.0, 400.0, VEHICLE_PARAMS['mass_kg'])
-    VEHICLE_PARAMS['weight_dist'] = st.slider("Front Weight %", 0.40, 0.60, VEHICLE_PARAMS['weight_dist'])
+    VEHICLE_PARAMS['weight_dist'] = st.slider("Front Weight %", 0.4, 0.6, VEHICLE_PARAMS['weight_dist'])
     VEHICLE_PARAMS['cg_height'] = st.number_input("CG Height (mm)", 100.0, 500.0, VEHICLE_PARAMS['cg_height'])
 
     st.subheader("Dimensions")
     VEHICLE_PARAMS['wheelbase'] = st.number_input("Wheelbase (mm)", 1300.0, 2000.0, VEHICLE_PARAMS['wheelbase'])
     VEHICLE_PARAMS['track_width'] = st.number_input("Track Width (mm)", 1000.0, 1500.0, VEHICLE_PARAMS['track_width'])
-
     VEHICLE_PARAMS['brake_bias'] = st.slider("Brake Bias", 0.4, 0.8, VEHICLE_PARAMS['brake_bias'])
 
 # ====================================================
-# TAB 2: GEOMETRY + 3D VIEW ✅
+# TAB 2: GEOMETRY + FULL 3D VIEW ✅
 # ====================================================
 with tab_geo:
     c1, c2 = st.columns(2)
@@ -87,48 +89,46 @@ with tab_geo:
 
     st.divider()
 
-    # ✅ 3D VIEW MOVED HERE
-    st.subheader("3D Suspension Visualization")
+    # ✅ FULL ORIGINAL 3D SYSTEM (RESTORED PROPERLY)
+    st.subheader("3D Suspension View")
 
-    fig = plt.figure(figsize=(10, 6))
-    ax = fig.add_subplot(projection='3d')
+    c1, c2 = st.columns([1, 4])
 
-    for end, data in viz_data.items():
-        if data:
-            color = 'b' if end == "Front" else 'r'
+    with c1:
+        elev = st.slider("Elevation", 0, 90, 20, key="geo_elev")
+        azim = st.slider("Azimuth", -180, 180, -60, key="geo_azim")
 
-            for k, v in data.items():
-                if isinstance(v, np.ndarray):
-                    ax.scatter(v[0], v[1], v[2], color=color, s=20)
+    with c2:
+        fig3d = plt.figure(figsize=(10, 6))
+        ax3d = fig3d.add_subplot(111, projection='3d')
 
-            # connect key suspension links visually
-            def line(p1, p2):
-                ax.plot(
-                    [p1[0], p2[0]],
-                    [p1[1], p2[1]],
-                    [p1[2], p2[2]],
-                    color=color
-                )
+        # ✅ Ground plane
+        xx, yy = np.meshgrid(
+            np.linspace(-2000, 1000, 12),
+            np.linspace(-1000, 1000, 12)
+        )
+        ax3d.plot_wireframe(xx, yy, np.zeros_like(xx), color='grey', alpha=0.1)
 
-            hp = data
+        # ✅ FULL vehicle rendering
+        for end, data in viz_data.items():
+            if data:
+                color = 'b' if end == 'Front' else 'r'
 
-            # Wishbones
-            line(hp['upper_wishbone_front'], hp['upper_ball_joint'])
-            line(hp['upper_wishbone_rear'], hp['upper_ball_joint'])
-            line(hp['lower_wishbone_front'], hp['lower_ball_joint'])
-            line(hp['lower_wishbone_rear'], hp['lower_ball_joint'])
+                # Left side
+                plot_corner(ax3d, data, color, VEHICLE_PARAMS)
 
-            # Tie rod
-            line(hp['tie_rod_chassis'], hp['tie_rod_upright'])
+                # Right side (mirrored)
+                plot_corner(ax3d, mirror_data(data), color, VEHICLE_PARAMS)
 
-            # Upright
-            line(hp['upper_ball_joint'], hp['lower_ball_joint'])
+        ax3d.set_title("FSAE Full Vehicle Model", fontsize=14)
+        ax3d.set_xlabel("X")
+        ax3d.set_ylabel("Y")
+        ax3d.set_zlabel("Z")
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
+        set_axes_proportional(ax3d)
+        ax3d.view_init(elev=elev, azim=azim)
 
-    st.pyplot(fig)
+        st.pyplot(fig3d)
 
 # ====================================================
 # TAB 3: KINEMATICS
@@ -137,18 +137,15 @@ with tab_kin:
     st.subheader("Camber Gain")
 
     heave = np.arange(-25, 26, 1)
-
     results = {'Front': [], 'Rear': []}
 
     for end, solver in [("Front", f_solver), ("Rear", r_solver)]:
         base = viz_data[end]
-
         bc = solver.calculate_camber(base)
         bt = solver.calculate_toe(base)
 
         for h in heave:
             r = solver.solve_heave(h)
-
             results[end].append([
                 h,
                 solver.calculate_camber(r) - bc,
@@ -173,14 +170,14 @@ with tab_kin:
 # ====================================================
 with tab_steer:
     st.subheader("Ackermann Analysis")
-    st.info("Use original steering solver logic here (unchanged).")
+    st.info("Use your steering solver here (unchanged).")
 
 # ====================================================
 # TAB 5: ANTI
 # ====================================================
 with tab_anti:
     st.subheader("Anti-Dive / Anti-Squat")
-    st.info("Add instant center + anti calculations here.")
+    st.info("Add instant center tools here.")
 
 # ====================================================
 # TAB 6: DAMPING
