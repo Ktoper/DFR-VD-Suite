@@ -8,6 +8,7 @@ from fsae_core import (
     ForceSolver,
     LoadCaseGenerator,
     AnalysisTools,
+    plot_schematic_2d,
     dict_to_df,
     df_to_dict,
     calculate_damping_ratios,
