@@ -170,34 +170,189 @@ with tab_kin:
 # ====================================================
 with tab_steer:
     st.subheader("Ackermann Analysis")
-    rack_travel = np.linspace(-15, 15, 20)
-    steer_L = []; steer_R = []
-    static_res = f_solver.solve_heave(0, steer_rack_y=0)
-    static_toe = f_solver.calculate_toe(static_res) if static_res else 0.0
-    if viz_data['Front']:
-        f_solver.init_guess = np.concatenate([viz_data['Front']['upper_ball_joint'], viz_data['Front']['lower_ball_joint'], viz_data['Front']['tie_rod_upright']])
-        for y in rack_travel:
-            res = f_solver.solve_heave(0, steer_rack_y=y)
-            if res:
-                toe_raw = f_solver.calculate_toe(res)
-                angle_L = toe_raw - static_toe
-                res_mirror = f_solver.solve_heave(0, steer_rack_y=-y)
-                angle_R = -(f_solver.calculate_toe(res_mirror) - static_toe) if res_mirror else -angle_L
-                steer_L.append(angle_L); steer_R.append(angle_R)
-    fig, ax = plt.subplots()
-    if steer_L:
-        inner_angs = []; outer_angs = []
-        for l, r in zip(steer_L, steer_R):
-            if l > 0: inner_angs.append(l); outer_angs.append(abs(r)) 
-            elif r > 0: inner_angs.append(r); outer_angs.append(abs(l))
-        if inner_angs:
-            zipped = sorted(zip(inner_angs, outer_angs))
-            i_plt, o_plt = zip(*zipped)
-            ax.plot(i_plt, o_plt, 'b-', label='Actual Geometry')
-        ax.plot([0, 20], [0, 20], 'k:', label="Parallel (100%)")
-        ax.set_xlabel("Inner Wheel Angle (deg)"); ax.set_ylabel("Outer Wheel Angle (deg)"); ax.legend(); ax.grid(True)
-        st.pyplot(fig)
 
+    rack_travel = np.linspace(-15, 15, 41)
+
+    steer_L = []
+    steer_R = []
+
+    static_res = f_solver.solve_heave(0, steer_rack_y=0)
+
+    if static_res:
+
+        static_toe = f_solver.calculate_toe(static_res)
+
+        # Improve convergence
+        if viz_data['Front']:
+            f_solver.init_guess = np.concatenate([
+                viz_data['Front']['upper_ball_joint'],
+                viz_data['Front']['lower_ball_joint'],
+                viz_data['Front']['tie_rod_upright']
+            ])
+
+        for rack in rack_travel:
+
+            # Left lock
+            res_L = f_solver.solve_heave(
+                0,
+                steer_rack_y=rack
+            )
+
+            # Mirror approximation of opposite side
+            res_R = f_solver.solve_heave(
+                0,
+                steer_rack_y=-rack
+            )
+
+            if res_L and res_R:
+
+                left_angle = (
+                    f_solver.calculate_toe(res_L)
+                    - static_toe
+                )
+
+                right_angle = -(
+                    f_solver.calculate_toe(res_R)
+                    - static_toe
+                )
+
+                steer_L.append(left_angle)
+                steer_R.append(right_angle)
+
+    if steer_L:
+
+        inner_angles = []
+        outer_angles = []
+        ackermann_pct = []
+
+        wheelbase = VEHICLE_PARAMS['wheelbase']
+        track = VEHICLE_PARAMS['track_width']
+
+        for l, r in zip(steer_L, steer_R):
+
+            # Ignore straight-ahead region
+            if abs(l) < 0.25 and abs(r) < 0.25:
+                continue
+
+            inner = max(abs(l), abs(r))
+            outer = min(abs(l), abs(r))
+
+            inner_angles.append(inner)
+            outer_angles.append(outer)
+
+            try:
+
+                ack = (
+                    (
+                        1 / np.tan(np.radians(outer))
+                        -
+                        1 / np.tan(np.radians(inner))
+                    )
+                    /
+                    (track / wheelbase)
+                ) * 100
+
+                ackermann_pct.append(ack)
+
+            except Exception:
+                ackermann_pct.append(np.nan)
+
+        # ------------------------------------
+        # Plot 1: Outer vs Inner
+        # ------------------------------------
+
+        fig1, ax1 = plt.subplots(figsize=(6, 5))
+
+        if inner_angles:
+
+            pts = sorted(zip(inner_angles, outer_angles))
+            inner_plot, outer_plot = zip(*pts)
+
+            ax1.plot(
+                inner_plot,
+                outer_plot,
+                linewidth=2,
+                label="Actual Geometry"
+            )
+
+        # Parallel steering
+        ax1.plot(
+            [0, 25],
+            [0, 25],
+            'k:',
+            label="Parallel Steering (0% Ackermann)"
+        )
+
+        ax1.set_xlabel("Inner Wheel Angle (deg)")
+        ax1.set_ylabel("Outer Wheel Angle (deg)")
+        ax1.set_title("Steering Geometry")
+        ax1.grid(True)
+        ax1.legend()
+
+        st.pyplot(fig1)
+
+        # ------------------------------------
+        # Plot 2: Ackermann %
+        # ------------------------------------
+
+        fig2, ax2 = plt.subplots(figsize=(6, 5))
+
+        ax2.plot(
+            inner_angles,
+            ackermann_pct,
+            linewidth=2,
+            color='tab:blue'
+        )
+
+        ax2.axhline(
+            100,
+            color='green',
+            linestyle='--',
+            label='Ideal Ackermann'
+        )
+
+        ax2.axhline(
+            0,
+            color='black',
+            linestyle=':'
+        )
+
+        ax2.set_xlabel("Inner Wheel Angle (deg)")
+        ax2.set_ylabel("Ackermann (%)")
+        ax2.set_title("Ackermann Percentage")
+        ax2.grid(True)
+        ax2.legend()
+
+        st.pyplot(fig2)
+
+        # ------------------------------------
+        # Summary metrics
+        # ------------------------------------
+
+        valid_ack = np.array(ackermann_pct)
+        valid_ack = valid_ack[np.isfinite(valid_ack)]
+
+        if len(valid_ack):
+
+            c1, c2, c3 = st.columns(3)
+
+            c1.metric(
+                "Average Ackermann",
+                f"{np.mean(valid_ack):.1f}%"
+            )
+
+            c2.metric(
+                "Peak Ackermann",
+                f"{np.max(valid_ack):.1f}%"
+            )
+
+            c3.metric(
+                "Ackermann @ 10°",
+                f"{np.interp(10, inner_angles, ackermann_pct):.1f}%"
+            )
+
+    else:
+        st.warning("Unable to solve steering geometry.")
 # ====================================================
 # TAB 5: ANTI
 # ====================================================
