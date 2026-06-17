@@ -68,7 +68,7 @@ with tab_config:
     VEHICLE_PARAMS['brake_bias'] = st.slider("Brake Bias", 0.4, 0.8, VEHICLE_PARAMS['brake_bias'])
 
 # ====================================================
-# TAB 2: GEOMETRY + FULL 3D VIEW ✅
+# TAB 2: GEOMETRY + FULL 3D VIEW
 # ====================================================
 with tab_geo:
     c1, c2 = st.columns(2)
@@ -89,7 +89,7 @@ with tab_geo:
 
     st.divider()
 
-    # ✅ FULL ORIGINAL 3D SYSTEM (RESTORED PROPERLY)
+    #----------------------------------------------
     st.subheader("3D Suspension View")
 
     c1, c2 = st.columns([1, 4])
@@ -354,11 +354,225 @@ with tab_steer:
     else:
         st.warning("Unable to solve steering geometry.")
 # ====================================================
-# TAB 5: ANTI
+# TAB 5: ANTI-DIVE / ANTI-SQUAT
 # ====================================================
 with tab_anti:
-    st.subheader("Anti-Dive / Anti-Squat")
-    st.info("Add instant center tools here.")
+
+    st.subheader("Pitch Geometry Analysis")
+
+    front_tools = AnalysisTools(current_f_hp)
+    rear_tools = AnalysisTools(current_r_hp)
+
+    ic_f = front_tools.get_instant_center_side()
+    ic_r = rear_tools.get_instant_center_side()
+
+    anti_dive = front_tools.get_anti_percentage(
+        ic_f,
+        current_f_hp['wheel_center'][0],
+        'dive'
+    )
+
+    anti_squat = rear_tools.get_anti_percentage(
+        ic_r,
+        current_r_hp['wheel_center'][0],
+        'squat'
+    )
+
+    # -----------------------------------------
+    # Metrics
+    # -----------------------------------------
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric(
+        "Front Anti-Dive",
+        f"{anti_dive:.1f}%"
+    )
+
+    c2.metric(
+        "Rear Anti-Squat",
+        f"{anti_squat:.1f}%"
+    )
+
+    if ic_f is not None:
+        c3.metric(
+            "Front IC Height",
+            f"{ic_f[1]:.0f} mm"
+        )
+
+    if ic_r is not None:
+        c4.metric(
+            "Rear IC Height",
+            f"{ic_r[1]:.0f} mm"
+        )
+
+    st.divider()
+
+    # -----------------------------------------
+    # Geometry Plots
+    # -----------------------------------------
+
+    fig, (ax1, ax2) = plt.subplots(
+        1,
+        2,
+        figsize=(14, 6)
+    )
+
+    # =================================================
+    # FRONT
+    # =================================================
+
+    plot_schematic_2d(
+        ax1,
+        current_f_hp,
+        "Front Side View",
+        view='side'
+    )
+
+    ax1.axhline(
+        0,
+        color='black',
+        linewidth=2
+    )
+
+    wc_x_f = current_f_hp['wheel_center'][0]
+
+    if ic_f is not None:
+
+        ax1.plot(
+            ic_f[0],
+            ic_f[1],
+            'ro',
+            markersize=8,
+            label='Instant Center'
+        )
+
+        ax1.plot(
+            [ic_f[0], wc_x_f],
+            [ic_f[1], 0],
+            'r--',
+            linewidth=2,
+            label='Swing Arm'
+        )
+
+        swing_angle = np.degrees(
+            np.arctan2(
+                -ic_f[1],
+                wc_x_f - ic_f[0]
+            )
+        )
+
+        ax1.text(
+            0.05,
+            0.95,
+            f"IC = ({ic_f[0]:.0f}, {ic_f[1]:.0f}) mm\n"
+            f"Swing Arm = {swing_angle:.1f}°\n"
+            f"Anti-Dive = {anti_dive:.1f}%",
+            transform=ax1.transAxes,
+            verticalalignment='top',
+            bbox=dict(facecolor='white', alpha=0.8)
+        )
+
+    ax1.set_title("Front Suspension")
+    ax1.grid(True)
+    ax1.legend()
+
+    # =================================================
+    # REAR
+    # =================================================
+
+    plot_schematic_2d(
+        ax2,
+        current_r_hp,
+        "Rear Side View",
+        view='side'
+    )
+
+    ax2.axhline(
+        0,
+        color='black',
+        linewidth=2
+    )
+
+    wc_x_r = current_r_hp['wheel_center'][0]
+
+    if ic_r is not None:
+
+        ax2.plot(
+            ic_r[0],
+            ic_r[1],
+            'ro',
+            markersize=8,
+            label='Instant Center'
+        )
+
+        ax2.plot(
+            [ic_r[0], wc_x_r],
+            [ic_r[1], 0],
+            'r--',
+            linewidth=2,
+            label='Swing Arm'
+        )
+
+        swing_angle = np.degrees(
+            np.arctan2(
+                -ic_r[1],
+                wc_x_r - ic_r[0]
+            )
+        )
+
+        ax2.text(
+            0.05,
+            0.95,
+            f"IC = ({ic_r[0]:.0f}, {ic_r[1]:.0f}) mm\n"
+            f"Swing Arm = {swing_angle:.1f}°\n"
+            f"Anti-Squat = {anti_squat:.1f}%",
+            transform=ax2.transAxes,
+            verticalalignment='top',
+            bbox=dict(facecolor='white', alpha=0.8)
+        )
+
+    ax2.set_title("Rear Suspension")
+    ax2.grid(True)
+    ax2.legend()
+
+    plt.tight_layout()
+
+    st.pyplot(fig)
+
+    # -----------------------------------------
+    # Classification
+    # -----------------------------------------
+
+    def classify(value):
+
+        if value < 20:
+            return "Low"
+
+        elif value < 60:
+            return "Moderate"
+
+        elif value < 100:
+            return "High"
+
+        else:
+            return "Pro"
+
+    st.divider()
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.info(
+            f"Front Geometry Classification: "
+            f"{classify(anti_dive)} Anti-Dive"
+        )
+
+    with c2:
+        st.info(
+            f"Rear Geometry Classification: "
+            f"{classify(anti_squat)} Anti-Squat"
+        )
 
 # ====================================================
 # TAB 6: DAMPING
