@@ -170,7 +170,33 @@ with tab_kin:
 # ====================================================
 with tab_steer:
     st.subheader("Ackermann Analysis")
-    st.info("Use your steering solver here (unchanged).")
+    rack_travel = np.linspace(-15, 15, 20)
+    steer_L = []; steer_R = []
+    static_res = f_solver.solve_heave(0, steer_rack_y=0)
+    static_toe = f_solver.calculate_toe(static_res) if static_res else 0.0
+    if viz_data['Front']:
+        f_solver.init_guess = np.concatenate([viz_data['Front']['upper_ball_joint'], viz_data['Front']['lower_ball_joint'], viz_data['Front']['tie_rod_upright']])
+        for y in rack_travel:
+            res = f_solver.solve_heave(0, steer_rack_y=y)
+            if res:
+                toe_raw = f_solver.calculate_toe(res)
+                angle_L = toe_raw - static_toe
+                res_mirror = f_solver.solve_heave(0, steer_rack_y=-y)
+                angle_R = -(f_solver.calculate_toe(res_mirror) - static_toe) if res_mirror else -angle_L
+                steer_L.append(angle_L); steer_R.append(angle_R)
+    fig, ax = plt.subplots()
+    if steer_L:
+        inner_angs = []; outer_angs = []
+        for l, r in zip(steer_L, steer_R):
+            if l > 0: inner_angs.append(l); outer_angs.append(abs(r)) 
+            elif r > 0: inner_angs.append(r); outer_angs.append(abs(l))
+        if inner_angs:
+            zipped = sorted(zip(inner_angs, outer_angs))
+            i_plt, o_plt = zip(*zipped)
+            ax.plot(i_plt, o_plt, 'b-', label='Actual Geometry')
+        ax.plot([0, 20], [0, 20], 'k:', label="Parallel (100%)")
+        ax.set_xlabel("Inner Wheel Angle (deg)"); ax.set_ylabel("Outer Wheel Angle (deg)"); ax.legend(); ax.grid(True)
+        st.pyplot(fig)
 
 # ====================================================
 # TAB 5: ANTI
